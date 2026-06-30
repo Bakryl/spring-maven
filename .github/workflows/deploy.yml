@@ -1,5 +1,4 @@
 name: Spring Boot CI/CD
-
 on:
   push:
     branches:
@@ -9,12 +8,10 @@ on:
     branches:
       - main
       - develop
-
 jobs:
   build:
-    name: Build & Test Spring Boot
+    name: Build, Test, Sonar & Nexus
     runs-on: self-hosted
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,9 +24,24 @@ jobs:
           cache: maven
 
       - name: Build with Maven
-        run:  mvn clean verify -Dmaven.compiler.release=21
+        run: mvn clean verify -Dmaven.compiler.release=21
+
+      - name: SonarQube Analysis
+        run: |
+          mvn sonar:sonar \
+            -Dsonar.projectKey=demo-github \
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+
+      - name: Publish to Nexus
+        if: github.ref == 'refs/heads/main'
+        run: mvn deploy -DskipTests
+        env:
+          NEXUS_USER: ${{ secrets.NEXUS_USER }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
       - name: Upload JAR artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: springboot-jar
@@ -40,7 +52,6 @@ jobs:
     runs-on: self-hosted
     needs: build
     if: github.ref == 'refs/heads/main'
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
